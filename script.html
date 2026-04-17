@@ -1,0 +1,54 @@
+<!-- Boiler Plate Set Up -->
+
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New York City's Wastewater Treatment System</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.js"></script>
+</head>
+
+<body>
+    <div id="sidebar">
+        <div class="sidebar-content">
+            <h2>Know Your Flow 🚽</h2>
+            <p>Have you ever stopped to think about what happens after you flush?</p>
+            <p>Every day, millions of gallons of wastewater travel through New York City's sewer system to one of 14 wastewater resource recovery facilities. There, the water is cleaned through a multi-step process that removes solids, filters out pollutants, and uses bacteria to break down waste before being safely discharged back into local waterways.</p>
+            <p>The result: cleaner waterways across New York Harbor and beyond—clean enough that whales and dolphins are starting to make a comeback. </p>
+            <p> <strong> Click the markers to learn more about this critical infrastrucure!</strong></p>
+        </div>
+    </div>
+    <div id="summary-table">
+        <div class="table-header">
+            <span>Plant Summary</span>
+            <button id="toggle-table" class="minimize-btn">−</button>
+        </div>
+        <div class="table-content">
+            <table id="plants-table">
+                <thead>
+                    <tr>
+                        <th>Facility</th>
+                        <th>Year Built</th>
+                        <th>Capacity*</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+            <div class="table-footnote">
+                *Wastewater flows are measured in millions of gallons per day (MGD)
+            </div>
+        </div>
+        <div class="table-minimized">
+            <span>Click to expand summary table</span>
+        </div>
+    </div>
+    <div id="map-container"></div>
+    <script src="script.js"></script>
+</body>
