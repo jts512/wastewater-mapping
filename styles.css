@@ -74,16 +74,29 @@ body {
 .table-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   padding: 16px 20px;
   background: rgba(0, 0, 0, 0.05);
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.table-header span {
+.table-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table-title span {
   font-weight: 600;
   color: #000;
   font-size: 16px;
+}
+
+.table-title em {
+  color: #555;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .minimize-btn {
@@ -135,6 +148,16 @@ body {
 
 #plants-table tr:hover {
   background: rgba(0, 0, 0, 0.02);
+}
+
+#plants-table tbody tr {
+  cursor: pointer;
+}
+
+#plants-table tbody tr:focus {
+  outline: 2px solid rgba(74, 144, 226, 0.8);
+  outline-offset: -2px;
+  background: rgba(74, 144, 226, 0.08);
 }
 
 .table-footnote {

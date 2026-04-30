@@ -9,45 +9,140 @@ const map = new mapboxgl.Map({
     center: [-73.97030020004898, 40.67490743292621]
 });
 
-// Borough color mapping (color theory: distinct, harmonious palette)
-const boroughColors = {
-    'Manhattan': '#4A90E2',      // Cool blue
-    'Bronx': '#50C878',          // Fresh green
-    'Queens': '#FF8C42',         // Warm orange
-    'Brooklyn': '#9B59B6',       // Modern purple
-    'Staten Island': '#17A2B8'   // Water teal
+const plantMarkers = new Map();
+
+// WRRF marker color
+const markerColor = '#4A90E2';  // Blue
+
+// Sewershed styling - edit these values to customize appearance
+const sewershedStyle = {
+    defaultFillColor: '#B3D9E8',
+    fillOpacity: 0.3,
+    outlineColor: '#666',
+    outlineWidth: 2.0
 };
 
-// Map facility names to boroughs
-const facilityBoroughs = {
-    'North River': 'Manhattan',
-    'Wards Island': 'Manhattan',
-    'Hunts Point': 'Bronx',
-    'Jamaica': 'Queens',
-    'Rockaway': 'Queens',
-    'Tallman Island': 'Queens',
-    'Newtown Creek': 'Queens',
-    'Bowery Bay': 'Queens',
-    '26th Ward': 'Brooklyn',
-    'Coney Island': 'Brooklyn',
-    'Red Hook': 'Brooklyn',
-    'Owls Head': 'Brooklyn',
-    'Oakwood Beach': 'Staten Island',
-    'Port Richmond': 'Staten Island'
+// Sewershed color map
+// Edit the names and colors below to control which sewersheds get which fill color.
+const sewershedColorMap = {
+    '26 WARD': '#2A6F97',
+    'BOWERY BAY': '#8338EC',
+    'CONEY ISLAND': '#F8961E',
+    'HUNTS POINT': '#2A6F97',
+    'JAMAICA BAY': '#43AA8B',
+    'NEWTOWN CREEK': '#F8961E',
+    'ROCKAWAY': '#2A6F97',
+    'JAMAICA': '#43AA8B',
+    'NORTH RIVER': '#8338EC',
+    'CONEY ISLAND': '#8338EC',
+    'RED HOOK': '#2A6F97',
+    'OWLS HEAD': '#43AA8B',
+    'PORT RICHMOND': '#F8961E',
+    'OAKWOOD BEACH': '#2A6F97',
+    'WARDS ISLAND': '#43AA8B',
+    'TALLMAN ISLAND': '#F8961E',
+    'CENTRAL PARK': '#6B7280',
+    'NA': '#6B7280'  // Default color for sewersheds not listed above
 };
+
+// Build a Mapbox "match" expression that colors each sewershed by its Sewershed property.
+// If a sewershed name is not listed in sewershedColorMap, Mapbox uses the default color.
+function buildSewershedColorExpression(colorMap, defaultColor) {
+    const expression = ['match', ['get', 'Sewershed']];
+
+    Object.entries(colorMap).forEach(([name, color]) => {
+        expression.push(name, color);
+    });
+
+    expression.push(defaultColor);
+    return expression;
+}
+
+const sewershedFillColorExpression = buildSewershedColorExpression(sewershedColorMap, sewershedStyle.defaultFillColor);
 
 // Wait for the map to load before adding markers
 map.on('load', () => {
-    // Hide street labels but keep neighborhood/place labels
-    const layersToHide = ['road_label', 'transit_label'];
+    // Hide all labels and annotations to have a clean map
+    const layersToHide = [
+        'road_label',           // Road labels
+        'transit_label',        // Transit labels
+        'poi_label',            // Point of interest labels
+        'settlement_subdivision_label',  // Neighborhood labels
+        'settlement_label'      // City/settlement labels
+    ];
     layersToHide.forEach(layerId => {
         if (map.getLayer(layerId)) {
             map.setLayoutProperty(layerId, 'visibility', 'none');
         }
     });
     
+    // Load and add the sewersheds GeoJSON layer
+    loadAndAddSewersheds();
+    
     fetchAndAddMarkers();
 });
+
+// Load and display the sewersheds GeoJSON
+async function loadAndAddSewersheds() {
+    try {
+        const response = await fetch('nyc-sewersheds.geojson');
+        const geojson = await response.json();
+        
+        // Add the GeoJSON as a source
+        map.addSource('sewersheds', {
+            type: 'geojson',
+            data: geojson
+        });
+        
+        // Add a fill layer for the sewersheds (polygons and multipolygons)
+        map.addLayer({
+            id: 'sewersheds-fill',
+            type: 'fill',
+            source: 'sewersheds',
+            filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
+            paint: {
+                'fill-color': sewershedFillColorExpression,
+                'fill-opacity': sewershedStyle.fillOpacity
+            }
+        });
+        
+        // Add an outline layer for the sewersheds (polygons and multipolygons)
+        map.addLayer({
+            id: 'sewersheds-outline',
+            type: 'line',
+            source: 'sewersheds',
+            filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
+            paint: {
+                'line-color': sewershedStyle.outlineColor,
+                'line-width': sewershedStyle.outlineWidth,
+                'line-opacity': 0.8
+            }
+        });
+        
+        // Add a label layer for sewersheds (excluding null labels)
+        map.addLayer({
+            id: 'sewersheds-labels',
+            type: 'symbol',
+            source: 'sewersheds',
+            layout: {
+                'text-field': ['get', 'label'],
+                'text-size': 12,
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-allow-overlap': false,
+                'text-ignore-placement': false
+            },
+            paint: {
+                'text-color': '#333',
+                'text-halo-color': '#fff',
+                'text-halo-width': 1
+            },
+            filter: ['==', ['get', 'isLabel'], true]
+        });
+        
+    } catch (error) {
+        console.error('Error loading sewersheds GeoJSON:', error);
+    }
+}
 
 // Fetch and parse CSV file
 async function fetchAndAddMarkers() {
@@ -58,85 +153,86 @@ async function fetchAndAddMarkers() {
         
         // Add a marker for each plant
         plants.forEach(plant => {
-            const borough = facilityBoroughs[plant.facility] || 'Unknown';
-            const color = boroughColors[borough] || '#999999';
+            const color = markerColor;
             
+            const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' })
+                .setHTML(`
+                    <style>
+                        .plant-popup {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            padding: 0;
+                            border-radius: 12px;
+                            overflow: hidden;
+                        }
+                        .plant-popup-header {
+                            background: linear-gradient(135deg, ${color} 0%, ${adjustColor(color, -20)} 100%);
+                            color: white;
+                            padding: 16px;
+                            margin: 0;
+                        }
+                        .plant-popup-header h3 {
+                            margin: 0;
+                            font-size: 18px;
+                            font-weight: 600;
+                            letter-spacing: 0.3px;
+                        }
+                        .plant-popup-content {
+                            padding: 16px;
+                            background: #fafafa;
+                        }
+                        .popup-row {
+                            margin: 10px 0;
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .popup-row strong {
+                            color: #333;
+                            font-size: 12px;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            margin-bottom: 4px;
+                            font-weight: 600;
+                        }
+                        .popup-row p {
+                            margin: 0;
+                            color: #666;
+                            font-size: 14px;
+                            line-height: 1.5;
+                        }
+                    </style>
+                    <div class="plant-popup">
+                        <div class="plant-popup-header">
+                            <h3>${plant.facility}</h3>
+                        </div>
+                        <div class="plant-popup-content">
+                            <div class="popup-row">
+                                <strong>📅 Year Built</strong>
+                                <p>${plant.yearBuilt}</p>
+                            </div>
+                            <div class="popup-row">
+                                <strong>⚙️ Design Capacity</strong>
+                                <p>${plant.capacity}</p>
+                            </div>
+                            <div class="popup-row">
+                                <strong>👥 Population Served</strong>
+                                <p>${plant.populationServed}</p>
+                            </div>
+                            <div class="popup-row">
+                                <strong>💧 Receiving Waterbody</strong>
+                                <p>${plant.receivingWaterbody}</p>
+                            </div>
+                        </div>
+                    </div>
+                `);
+
             const marker = new mapboxgl.Marker({
                 element: createWaterDropletMarker(color)
             })
                 .setLngLat([plant.longitude, plant.latitude])
-                .setPopup(
-                    new mapboxgl.Popup({ offset: 25, maxWidth: '320px' })
-                        .setHTML(`
-                            <style>
-                                .plant-popup {
-                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                    padding: 0;
-                                    border-radius: 12px;
-                                    overflow: hidden;
-                                }
-                                .plant-popup-header {
-                                    background: linear-gradient(135deg, ${color} 0%, ${adjustColor(color, -20)} 100%);
-                                    color: white;
-                                    padding: 16px;
-                                    margin: 0;
-                                }
-                                .plant-popup-header h3 {
-                                    margin: 0;
-                                    font-size: 18px;
-                                    font-weight: 600;
-                                    letter-spacing: 0.3px;
-                                }
-                                .plant-popup-content {
-                                    padding: 16px;
-                                    background: #fafafa;
-                                }
-                                .popup-row {
-                                    margin: 10px 0;
-                                    display: flex;
-                                    flex-direction: column;
-                                }
-                                .popup-row strong {
-                                    color: #333;
-                                    font-size: 12px;
-                                    text-transform: uppercase;
-                                    letter-spacing: 0.5px;
-                                    margin-bottom: 4px;
-                                    font-weight: 600;
-                                }
-                                .popup-row p {
-                                    margin: 0;
-                                    color: #666;
-                                    font-size: 14px;
-                                    line-height: 1.5;
-                                }
-                            </style>
-                            <div class="plant-popup">
-                                <div class="plant-popup-header">
-                                    <h3>${plant.facility}</h3>
-                                </div>
-                                <div class="plant-popup-content">
-                                    <div class="popup-row">
-                                        <strong>📅 Year Built</strong>
-                                        <p>${plant.yearBuilt}</p>
-                                    </div>
-                                    <div class="popup-row">
-                                        <strong>⚙️ Design Capacity</strong>
-                                        <p>${plant.capacity}</p>
-                                    </div>
-                                    <div class="popup-row">
-                                        <strong>👥 Population Served</strong>
-                                        <p>${plant.populationServed}</p>
-                                    </div>
-                                    <div class="popup-row">
-                                        <strong>💧 Receiving Waterbody</strong>
-                                        <p>${plant.receivingWaterbody}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `)
-                )
+                .setPopup(popup)
                 .addTo(map);
+
+            plantMarkers.set(plant.facility, marker);
         });
 
         // Populate the summary table
@@ -243,13 +339,36 @@ function populateSummaryTable(plants) {
     
     sortedPlants.forEach(plant => {
         const row = document.createElement('tr');
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `Zoom to ${plant.facility}`);
         row.innerHTML = `
             <td>${plant.facility}</td>
             <td>${plant.yearBuilt}</td>
             <td>${plant.capacity}</td>
         `;
+        row.addEventListener('click', () => zoomToPlant(plant));
+        row.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                zoomToPlant(plant);
+            }
+        });
         tableBody.appendChild(row);
     });
+}
+
+function zoomToPlant(plant) {
+    map.flyTo({
+        center: [plant.longitude, plant.latitude],
+        zoom: 13.5,
+        essential: true
+    });
+
+    const marker = plantMarkers.get(plant.facility);
+    if (marker) {
+        marker.getPopup().addTo(map);
+    }
 }
 
 // Setup minimize/expand functionality for the summary table
