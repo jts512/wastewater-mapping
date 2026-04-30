@@ -59,6 +59,8 @@ function buildSewershedColorExpression(colorMap, defaultColor) {
 }
 
 const sewershedFillColorExpression = buildSewershedColorExpression(sewershedColorMap, sewershedStyle.defaultFillColor);
+const sewershedPolygonFilter = ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']];
+const emptySewershedFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], '']];
 
 // Wait for the map to load before adding markers
 map.on('load', () => {
@@ -99,7 +101,7 @@ async function loadAndAddSewersheds() {
             id: 'sewersheds-fill',
             type: 'fill',
             source: 'sewersheds',
-            filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
+            filter: sewershedPolygonFilter,
             paint: {
                 'fill-color': sewershedFillColorExpression,
                 'fill-opacity': sewershedStyle.fillOpacity
@@ -111,11 +113,23 @@ async function loadAndAddSewersheds() {
             id: 'sewersheds-outline',
             type: 'line',
             source: 'sewersheds',
-            filter: ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']],
+            filter: sewershedPolygonFilter,
             paint: {
                 'line-color': sewershedStyle.outlineColor,
                 'line-width': sewershedStyle.outlineWidth,
                 'line-opacity': 0.8
+            }
+        });
+
+        map.addLayer({
+            id: 'sewersheds-hover-outline',
+            type: 'line',
+            source: 'sewersheds',
+            filter: emptySewershedFilter,
+            paint: {
+                'line-color': '#222',
+                'line-width': 4,
+                'line-opacity': 0.40
             }
         });
         
@@ -138,10 +152,43 @@ async function loadAndAddSewersheds() {
             },
             filter: ['==', ['get', 'isLabel'], true]
         });
+
+        setupSewershedHover();
         
     } catch (error) {
         console.error('Error loading sewersheds GeoJSON:', error);
     }
+}
+
+function setupSewershedHover() {
+    map.on('mousemove', 'sewersheds-fill', event => {
+        const hoveredFeature = event.features[0];
+        if (!hoveredFeature) {
+            clearSewershedHover();
+            return;
+        }
+
+        const sewershedName = hoveredFeature.properties.Sewershed;
+
+        map.getCanvas().style.cursor = sewershedName ? 'pointer' : '';
+
+        if (!sewershedName) {
+            clearSewershedHover();
+            return;
+        }
+
+        const hoverFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
+        map.setFilter('sewersheds-hover-outline', hoverFilter);
+    });
+
+    map.on('mouseleave', 'sewersheds-fill', () => {
+        map.getCanvas().style.cursor = '';
+        clearSewershedHover();
+    });
+}
+
+function clearSewershedHover() {
+    map.setFilter('sewersheds-hover-outline', emptySewershedFilter);
 }
 
 // Fetch and parse CSV file
