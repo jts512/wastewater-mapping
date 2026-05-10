@@ -174,7 +174,7 @@ body {
 #map-legend {
   position: absolute;
   left: 20px;
-  bottom: 24px;
+  bottom: 48px;
   width: 270px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -383,9 +383,11 @@ body {
 }
 
 .legend-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px 1fr;
   align-items: center;
-  gap: 9px;
+  column-gap: 9px;
+  text-align: left;
 }
 
 .legend-row + .legend-row {
@@ -398,6 +400,7 @@ body {
   height: 14px;
   border: 1px solid rgba(31, 41, 51, 0.18);
   border-radius: 3px;
+  justify-self: start;
 }
 
 .legend-swatch.treatment-area {
@@ -411,11 +414,10 @@ body {
 .legend-plant-marker {
   position: relative;
   flex: 0 0 auto;
-  min-width: 34px;
-  height: 20px;
+  width: 22px;
+  height: 18px;
   display: grid;
   place-items: center;
-  padding: 0 6px;
   border: 2px solid #4A90E2;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.88);
@@ -460,9 +462,7 @@ body {
 }
 
 #wrrf-info-panel.empty {
-  opacity: 0;
   pointer-events: none;
-  transform: translateY(8px);
 }
 
 .wrrf-panel-header {
@@ -701,7 +701,7 @@ body {
   }
 
   #map-legend {
-    bottom: 12px;
+    bottom: 42px;
     left: 10px;
     width: min(300px, calc(100vw - 20px));
   }

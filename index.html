@@ -8,6 +8,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>New York City's Wastewater Treatment System</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%BD%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.0/mapbox-gl-geocoder.css" rel="stylesheet">
@@ -41,7 +42,7 @@
         </div>
         <div class="wrrf-panel-body">
             <p id="wrrf-panel-prompt" class="panel-prompt">
-                Hover to preview. Click or tap a treatment area to keep it open.
+                Hover over a sewershed to learn more about the Wastewater Resource Recovery Facility (WRRF) that serves the area. Click or tap a treatment area to keep it open.
             </p>
             <div id="wrrf-panel-content" class="panel-content" aria-live="polite">
                 <div class="metric-grid" id="wrrf-metrics"></div>
@@ -70,15 +71,15 @@
     <div id="map-legend">
         <div class="legend-row">
             <span class="legend-swatch treatment-area"></span>
-            <span>Colors distinguish WRRF treatment areas</span>
+            <span>Colors show mapped WRRF treatment areas</span>
         </div>
         <div class="legend-row">
             <span class="legend-swatch neutral-area"></span>
-            <span>Neutral areas are not WRRF sewersheds</span>
+            <span>Gray areas are not assigned to a mapped WRRF sewershed</span>
         </div>
         <div class="legend-row">
-            <span class="legend-plant-marker" aria-hidden="true">WRRF</span>
-            <span>WRRF markers show the treatment plant location for that area</span>
+            <span class="legend-plant-marker" aria-hidden="true"></span>
+            <span>Markers identify WRRF locations</span>
         </div>
     </div>
     <div id="map-container"></div>

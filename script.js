@@ -76,11 +76,20 @@ const sewershedToWrrfName = {
     'JAMAICA BAY': 'Jamaica'
 };
 
+const sewershedOverrides = [
+    {
+        name: 'Governors Island',
+        sourceSewershed: 'NA',
+        targetSewershed: 'RED HOOK',
+        coordinate: [-74.0169, 40.6895]
+    }
+];
+
 const inactiveSewersheds = new Set(['CENTRAL PARK', 'NA']);
 
 const wrrfMetricFields = [
-    ['Year', 'Year'],
-    ['Capacity', 'Capacity (MGD)', ' MGD'],
+    ['Year Built', 'Year'],
+    ['Plant Capacity', 'Capacity (MGD)', ' MGD'],
     ['Wet Weather Flow', 'Wet Weather Flow (MGD)', ' MGD'],
     ['Population Served', 'Population Served'],
     ['Drainage Area', 'Drainage Area (acres)', ' acres'],
@@ -217,6 +226,7 @@ async function loadAndAddSewersheds() {
     try {
         const response = await fetch('nyc-sewersheds.geojson');
         const geojson = await response.json();
+        applySewershedOverrides(geojson);
         
         // Add the GeoJSON as a source
         map.addSource('sewersheds', {
@@ -301,6 +311,76 @@ async function loadAndAddSewersheds() {
     } catch (error) {
         console.error('Error loading sewersheds GeoJSON:', error);
     }
+}
+
+function applySewershedOverrides(geojson) {
+    sewershedOverrides.forEach(override => {
+        moveContainingPolygonToSewershed(geojson, override);
+    });
+}
+
+function moveContainingPolygonToSewershed(geojson, override) {
+    const sourceFeature = geojson.features.find(feature =>
+        feature.geometry?.type === 'MultiPolygon' &&
+        feature.properties?.Sewershed === override.sourceSewershed &&
+        feature.geometry.coordinates.some(polygon => isPointInPolygon(override.coordinate, polygon))
+    );
+
+    if (!sourceFeature) {
+        console.warn(`Could not find ${override.name} sewershed override source polygon.`);
+        return;
+    }
+
+    const targetPolygons = [];
+    sourceFeature.geometry.coordinates = sourceFeature.geometry.coordinates.filter(polygon => {
+        if (isPointInPolygon(override.coordinate, polygon)) {
+            targetPolygons.push(polygon);
+            return false;
+        }
+
+        return true;
+    });
+
+    if (!targetPolygons.length) {
+        return;
+    }
+
+    geojson.features.push({
+        type: 'Feature',
+        properties: {
+            ...sourceFeature.properties,
+            Sewershed: override.targetSewershed,
+            label: null
+        },
+        geometry: {
+            type: 'MultiPolygon',
+            coordinates: targetPolygons
+        }
+    });
+}
+
+function isPointInPolygon(point, polygon) {
+    const [outerRing, ...holes] = polygon;
+    return isPointInRing(point, outerRing) &&
+        !holes.some(ring => isPointInRing(point, ring));
+}
+
+function isPointInRing(point, ring) {
+    const [x, y] = point;
+    let inside = false;
+
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        const intersects = ((yi > y) !== (yj > y)) &&
+            x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+
+        if (intersects) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
 }
 
 function getFirstBasemapLabelLayerId() {
@@ -482,7 +562,7 @@ function showWrrfDetails(sewershedName) {
         return;
     }
 
-    title.textContent = details['WRRF Name'];
+    title.textContent = getPanelTreatmentAreaTitle(sewershedName, details);
     code.textContent = details.WRRF || 'WRRF';
     metricsContainer.innerHTML = wrrfMetricFields
         .map(([label, field, suffix = '']) => createMetricCard(label, details[field], suffix))
@@ -492,6 +572,14 @@ function showWrrfDetails(sewershedName) {
     functionsContainer.innerHTML = functionGroupsHTML
         ? functionGroupsHTML
         : '<span class="no-functions">No listed functions marked Yes.</span>';
+}
+
+function getPanelTreatmentAreaTitle(sewershedName, details) {
+    if (sewershedName === 'JAMAICA BAY') {
+        return 'Jamaica Bay';
+    }
+
+    return details['WRRF Name'];
 }
 
 function createFunctionGroups(details) {
