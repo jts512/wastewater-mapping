@@ -10,46 +10,68 @@
   <title>New York City's Wastewater Treatment System</title>
   <link rel="stylesheet" href="styles.css">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.0/mapbox-gl-geocoder.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.0/mapbox-gl-geocoder.min.js"></script>
 </head>
 
 <body>
-    <div id="sidebar">
-        <div class="sidebar-content">
+    <div id="intro-overlay">
+        <div class="intro-card">
             <h2>Know Your Flow 🚽</h2>
             <p>Have you ever stopped to think about what happens after you flush?</p>
             <p>Every day, millions of gallons of wastewater travel through New York City's sewer system to one of 14 wastewater resource recovery facilities. There, the water is cleaned through a multi-step process that removes solids, filters out pollutants, and uses bacteria to break down waste before being safely discharged back into local waterways.</p>
             <p>The result: cleaner waterways across New York Harbor and beyond—clean enough that whales and dolphins are starting to make a comeback. </p>
-            <p> <strong> Click the markers to learn more about this critical infrastrucure!</strong></p>
+            <p class="intro-note">
+                Sewershed boundaries are illustrative and not official planning data.
+                Source: <a href="https://openseweratlas.tumblr.com/data" target="_blank" rel="noopener">Open Sewer Atlas NYC</a>.
+            </p>
+            <button id="enter-map" type="button">Enter Map</button>
         </div>
     </div>
-    <div id="summary-table">
-        <div class="table-header">
-            <div class="table-title">
-                <span>Plant Summary</span>
-                <em>Click a row to zoom to that plant's location on the map</em>
+    <div id="wrrf-info-panel" class="empty">
+        <div class="wrrf-panel-header">
+            <div>
+                <span class="panel-kicker">Treatment Area</span>
+                <h3 id="wrrf-panel-title">Hover over a sewershed</h3>
             </div>
-            <button id="toggle-table" class="minimize-btn">−</button>
+            <span id="wrrf-panel-code" class="wrrf-code">WRRF</span>
         </div>
-        <div class="table-content">
-            <table id="plants-table">
-                <thead>
-                    <tr>
-                        <th>Facility</th>
-                        <th>Year Built</th>
-                        <th>Capacity*</th>
-                    </tr>
-                </thead>
-                <tbody id="table-body">
-                    <!-- Table rows will be populated by JavaScript -->
-                </tbody>
-            </table>
-            <div class="table-footnote">
-                *Wastewater flows are measured in millions of gallons per day (MGD)
+        <div class="wrrf-panel-body">
+            <p id="wrrf-panel-prompt" class="panel-prompt">
+                Hover to preview. Click a treatment area to keep it open.
+            </p>
+            <div id="wrrf-panel-content" class="panel-content" aria-live="polite">
+                <div class="metric-grid" id="wrrf-metrics"></div>
+                <div class="function-section">
+                    <h4>Facility Functions</h4>
+                    <div class="function-list" id="wrrf-functions"></div>
+                </div>
             </div>
         </div>
-        <div class="table-minimized">
-            <span>Click to expand summary table</span>
+    </div>
+    <div id="treatment-guide" class="minimized">
+        <div class="guide-header">
+            <div>
+                <span class="panel-kicker">Treatment Guide</span>
+                <h3>What the Functions Mean</h3>
+            </div>
+            <button id="toggle-guide" type="button" aria-label="Expand treatment guide">+</button>
+        </div>
+        <div class="guide-body">
+            <div class="guide-tabs" id="guide-tabs"></div>
+            <div class="guide-pills" id="guide-pills"></div>
+            <div class="guide-description" id="guide-description"></div>
+        </div>
+    </div>
+    <div id="map-legend">
+        <div class="legend-row">
+            <span class="legend-swatch treatment-area"></span>
+            <span>Colors distinguish WRRF treatment areas</span>
+        </div>
+        <div class="legend-row">
+            <span class="legend-swatch neutral-area"></span>
+            <span>Neutral areas are not WRRF sewersheds</span>
         </div>
     </div>
     <div id="map-container"></div>

@@ -10,39 +10,42 @@ const map = new mapboxgl.Map({
 });
 
 const plantMarkers = new Map();
+const wrrfDetailsBySewershed = new Map();
+let lockedSewershedName = null;
+let searchedAddressMarker = null;
 
 // WRRF marker color
 const markerColor = '#4A90E2';  // Blue
 
 // Sewershed styling - edit these values to customize appearance
 const sewershedStyle = {
-    defaultFillColor: '#B3D9E8',
-    fillOpacity: 0.3,
-    outlineColor: '#666',
-    outlineWidth: 2.0
+    defaultFillColor: '#D8E1E6',
+    fillOpacity: 0.34,
+    inactiveFillOpacity: 0.08,
+    outlineColor: '#7A858C',
+    outlineWidth: 1.4
 };
 
 // Sewershed color map
 // Edit the names and colors below to control which sewersheds get which fill color.
 const sewershedColorMap = {
-    '26 WARD': '#2A6F97',
-    'BOWERY BAY': '#8338EC',
-    'CONEY ISLAND': '#F8961E',
-    'HUNTS POINT': '#2A6F97',
-    'JAMAICA BAY': '#43AA8B',
-    'NEWTOWN CREEK': '#F8961E',
-    'ROCKAWAY': '#2A6F97',
-    'JAMAICA': '#43AA8B',
-    'NORTH RIVER': '#8338EC',
-    'CONEY ISLAND': '#8338EC',
-    'RED HOOK': '#2A6F97',
-    'OWLS HEAD': '#43AA8B',
-    'PORT RICHMOND': '#F8961E',
-    'OAKWOOD BEACH': '#2A6F97',
-    'WARDS ISLAND': '#43AA8B',
-    'TALLMAN ISLAND': '#F8961E',
-    'CENTRAL PARK': '#6B7280',
-    'NA': '#6B7280'  // Default color for sewersheds not listed above
+    '26 WARD': '#6FA6B5',
+    'BOWERY BAY': '#A99AC6',
+    'CONEY ISLAND': '#D8A35D',
+    'HUNTS POINT': '#7EAAA0',
+    'JAMAICA BAY': '#A7B96F',
+    'NEWTOWN CREEK': '#C98F86',
+    'ROCKAWAY': '#8FAFD2',
+    'JAMAICA': '#7BB99A',
+    'NORTH RIVER': '#9E9ABF',
+    'RED HOOK': '#7FA3B0',
+    'OWLS HEAD': '#B6A66E',
+    'PORT RICHMOND': '#C9A07B',
+    'OAKWOOD BEACH': '#8CB6C4',
+    'WARDS ISLAND': '#7BAA89',
+    'TALLMAN ISLAND': '#D0B36F',
+    'CENTRAL PARK': '#D9DEE2',
+    'NA': '#D9DEE2'  // Neutral color for non-WRRF land areas
 };
 
 // Build a Mapbox "match" expression that colors each sewershed by its Sewershed property.
@@ -59,30 +62,150 @@ function buildSewershedColorExpression(colorMap, defaultColor) {
 }
 
 const sewershedFillColorExpression = buildSewershedColorExpression(sewershedColorMap, sewershedStyle.defaultFillColor);
+const sewershedFillOpacityExpression = [
+    'case',
+    ['in', ['get', 'Sewershed'], ['literal', ['CENTRAL PARK', 'NA']]],
+    sewershedStyle.inactiveFillOpacity,
+    sewershedStyle.fillOpacity
+];
 const sewershedPolygonFilter = ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']];
 const emptySewershedFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], '']];
 
+const sewershedToWrrfName = {
+    '26 WARD': '26th Ward',
+    'JAMAICA BAY': 'Jamaica'
+};
+
+const inactiveSewersheds = new Set(['CENTRAL PARK', 'NA']);
+
+const wrrfMetricFields = [
+    ['Year', 'Year'],
+    ['Capacity', 'Capacity (MGD)', ' MGD'],
+    ['Wet Weather Flow', 'Wet Weather Flow (MGD)', ' MGD'],
+    ['Population Served', 'Population Served'],
+    ['Drainage Area', 'Drainage Area (acres)', ' acres'],
+    ['Borough', 'Borough']
+];
+
+const wrrfFunctionGroups = [
+    {
+        title: 'Wastewater Treatment',
+        colorClass: 'treatment',
+        fields: [
+            'Preliminary Treatment',
+            'Secondary Treatment',
+            'Biological Nutrient Removal (BNR)',
+            'Chlorination',
+            'Dechlorination'
+        ]
+    },
+    {
+        title: 'Solids Handling',
+        colorClass: 'solids',
+        fields: [
+            'Sludge Dewatering',
+            'Sludge Pumping',
+            'Docks'
+        ]
+    },
+    {
+        title: 'Energy Generation',
+        colorClass: 'energy',
+        fields: [
+            'Gas to Grid / Food Waste',
+            'Cogen Engines',
+            'Title V Facility'
+        ]
+    },
+    {
+        title: 'CSO Facilities',
+        colorClass: 'cso',
+        fields: ['CSO Facilities']
+    }
+];
+
+const treatmentFunctionDescriptions = {
+    'Preliminary Treatment': 'Screens and settling equipment remove large debris, grit, and heavy solids before wastewater moves deeper into the facility.',
+    'Secondary Treatment': 'Microorganisms break down dissolved and suspended organic material, cleaning the water beyond basic solids removal.',
+    'Biological Nutrient Removal (BNR)': 'A biological process that reduces nutrients such as nitrogen, helping protect receiving waterways from excess algae growth.',
+    'Chlorination': 'Disinfects treated water before discharge by using chlorine to reduce harmful bacteria and pathogens.',
+    'Dechlorination': 'Removes or neutralizes chlorine after disinfection so treated water can be released with less impact on aquatic life.',
+    'Sludge Dewatering': 'Removes water from processed solids so the remaining material is easier to transport, reuse, or dispose of.',
+    'Sludge Pumping': 'Moves sludge between treatment steps or to another facility for further processing.',
+    'Docks': 'Supports transport of treatment byproducts, supplies, or materials by water where facilities have waterfront access.',
+    'Gas to Grid / Food Waste': 'Captures biogas from digestion, sometimes boosted with food waste, and upgrades it for useful energy.',
+    'Cogen Engines': 'Uses biogas or other fuel to generate electricity and useful heat for facility operations.',
+    'Title V Facility': 'Indicates the facility has air-emissions equipment or operations regulated under a major air permit.',
+    'CSO Facilities': 'Infrastructure that helps manage combined sewer overflows during wet weather, reducing untreated discharges to waterways.'
+};
+
+setupIntroOverlay();
+setupTreatmentGuide();
+
 // Wait for the map to load before adding markers
-map.on('load', () => {
-    // Hide all labels and annotations to have a clean map
-    const layersToHide = [
-        'road_label',           // Road labels
-        'transit_label',        // Transit labels
-        'poi_label',            // Point of interest labels
-        'settlement_subdivision_label',  // Neighborhood labels
-        'settlement_label'      // City/settlement labels
-    ];
-    layersToHide.forEach(layerId => {
-        if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, 'visibility', 'none');
-        }
-    });
-    
-    // Load and add the sewersheds GeoJSON layer
-    loadAndAddSewersheds();
+map.on('load', async () => {
+    addAddressSearch();
+    await loadWrrfDetails();
+    await loadAndAddSewersheds();
     
     fetchAndAddMarkers();
 });
+
+function addAddressSearch() {
+    if (typeof MapboxGeocoder === 'undefined') {
+        console.warn('Mapbox geocoder plugin is not available.');
+        return;
+    }
+
+    const geocoder = new MapboxGeocoder({
+        accessToken: mapboxgl.accessToken,
+        mapboxgl,
+        marker: false,
+        placeholder: 'Find your treatment area',
+        bbox: [-74.2591, 40.4774, -73.7004, 40.9176],
+        countries: 'us',
+        types: 'address,poi,place,neighborhood,locality',
+        proximity: {
+            longitude: -73.9703,
+            latitude: 40.6749
+        }
+    });
+
+    geocoder.on('result', event => {
+        const coordinates = event.result?.geometry?.coordinates;
+        if (coordinates) {
+            setSearchedAddressMarker(coordinates);
+            map.once('idle', () => {
+                selectTreatmentAreaAtCoordinates(coordinates);
+            });
+        }
+    });
+
+    geocoder.on('clear', () => {
+        clearSearchedAddressMarker();
+    });
+
+    map.addControl(geocoder, 'top-left');
+}
+
+async function loadWrrfDetails() {
+    try {
+        const response = await fetch('merged_wrrf_table.csv');
+        const csvText = await response.text();
+        const rows = parseCSVRows(csvText);
+
+        rows.forEach(row => {
+            const wrrfName = row['WRRF Name'];
+            if (!wrrfName) {
+                return;
+            }
+
+            wrrfDetailsBySewershed.set(normalizeName(wrrfName), row);
+        });
+    } catch (error) {
+        console.error('Error loading WRRF details CSV:', error);
+    }
+}
 
 // Load and display the sewersheds GeoJSON
 async function loadAndAddSewersheds() {
@@ -95,6 +218,8 @@ async function loadAndAddSewersheds() {
             type: 'geojson',
             data: geojson
         });
+
+        const firstLabelLayerId = getFirstBasemapLabelLayerId();
         
         // Add a fill layer for the sewersheds (polygons and multipolygons)
         map.addLayer({
@@ -104,9 +229,9 @@ async function loadAndAddSewersheds() {
             filter: sewershedPolygonFilter,
             paint: {
                 'fill-color': sewershedFillColorExpression,
-                'fill-opacity': sewershedStyle.fillOpacity
+                'fill-opacity': sewershedFillOpacityExpression
             }
-        });
+        }, firstLabelLayerId);
         
         // Add an outline layer for the sewersheds (polygons and multipolygons)
         map.addLayer({
@@ -119,7 +244,7 @@ async function loadAndAddSewersheds() {
                 'line-width': sewershedStyle.outlineWidth,
                 'line-opacity': 0.8
             }
-        });
+        }, firstLabelLayerId);
 
         map.addLayer({
             id: 'sewersheds-hover-outline',
@@ -131,7 +256,19 @@ async function loadAndAddSewersheds() {
                 'line-width': 4,
                 'line-opacity': 0.40
             }
-        });
+        }, firstLabelLayerId);
+
+        map.addLayer({
+            id: 'sewersheds-selected-outline',
+            type: 'line',
+            source: 'sewersheds',
+            filter: emptySewershedFilter,
+            paint: {
+                'line-color': '#0B1F2A',
+                'line-width': 3.6,
+                'line-opacity': 0.62
+            }
+        }, firstLabelLayerId);
         
         
         // Add a label layer for sewersheds (excluding null labels)
@@ -161,35 +298,321 @@ async function loadAndAddSewersheds() {
     }
 }
 
+function getFirstBasemapLabelLayerId() {
+    const layers = map.getStyle().layers;
+    const labelLayer = layers.find(layer =>
+        layer.type === 'symbol' &&
+        layer.layout &&
+        layer.layout['text-field'] &&
+        !layer.id.startsWith('sewersheds')
+    );
+
+    return labelLayer?.id;
+}
+
 function setupSewershedHover() {
     map.on('mousemove', 'sewersheds-fill', event => {
+        if (lockedSewershedName) {
+            return;
+        }
+
         const hoveredFeature = event.features[0];
         if (!hoveredFeature) {
             clearSewershedHover();
+            resetWrrfPanel();
             return;
         }
 
         const sewershedName = hoveredFeature.properties.Sewershed;
+        const hasDetails = hasWrrfDetails(sewershedName);
 
-        map.getCanvas().style.cursor = sewershedName ? 'pointer' : '';
+        map.getCanvas().style.cursor = hasDetails ? 'pointer' : '';
 
-        if (!sewershedName) {
+        if (!hasDetails) {
             clearSewershedHover();
+            resetWrrfPanel();
             return;
         }
 
-        const hoverFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
-        map.setFilter('sewersheds-hover-outline', hoverFilter);
+        setSewershedHover(sewershedName);
+        showWrrfDetails(sewershedName);
     });
 
     map.on('mouseleave', 'sewersheds-fill', () => {
+        if (lockedSewershedName) {
+            return;
+        }
+
         map.getCanvas().style.cursor = '';
         clearSewershedHover();
+        resetWrrfPanel();
+    });
+
+    map.on('click', 'sewersheds-fill', event => {
+        const clickedFeature = event.features[0];
+        if (!clickedFeature) {
+            return;
+        }
+
+        const sewershedName = clickedFeature.properties.Sewershed;
+        if (!hasWrrfDetails(sewershedName)) {
+            return;
+        }
+
+        lockedSewershedName = sewershedName;
+        map.getCanvas().style.cursor = 'pointer';
+        clearSewershedHover();
+        setSelectedSewershed(sewershedName);
+        showWrrfDetails(sewershedName);
+    });
+
+    map.on('click', event => {
+        const features = map.queryRenderedFeatures(event.point, { layers: ['sewersheds-fill'] });
+        const clickedValidSewershed = features.some(feature => hasWrrfDetails(feature.properties.Sewershed));
+
+        if (!clickedValidSewershed) {
+            unlockSewershedPanel();
+        }
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            unlockSewershedPanel();
+        }
     });
 }
 
 function clearSewershedHover() {
-    map.setFilter('sewersheds-hover-outline', emptySewershedFilter);
+    if (map.getLayer('sewersheds-hover-outline')) {
+        map.setFilter('sewersheds-hover-outline', emptySewershedFilter);
+    }
+}
+
+function setSewershedHover(sewershedName) {
+    if (!map.getLayer('sewersheds-hover-outline')) {
+        return;
+    }
+
+    const hoverFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
+    map.setFilter('sewersheds-hover-outline', hoverFilter);
+}
+
+function clearSelectedSewershed() {
+    if (map.getLayer('sewersheds-selected-outline')) {
+        map.setFilter('sewersheds-selected-outline', emptySewershedFilter);
+    }
+}
+
+function setSelectedSewershed(sewershedName) {
+    if (!map.getLayer('sewersheds-selected-outline')) {
+        return;
+    }
+
+    const selectedFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
+    map.setFilter('sewersheds-selected-outline', selectedFilter);
+}
+
+function selectTreatmentAreaAtCoordinates(coordinates) {
+    if (!map.getLayer('sewersheds-fill')) {
+        return;
+    }
+
+    const point = map.project(coordinates);
+    const features = map.queryRenderedFeatures(point, { layers: ['sewersheds-fill'] });
+    const sewershedFeature = features.find(feature => hasWrrfDetails(feature.properties.Sewershed));
+
+    if (!sewershedFeature) {
+        unlockSewershedPanel();
+        return;
+    }
+
+    const sewershedName = sewershedFeature.properties.Sewershed;
+    lockedSewershedName = sewershedName;
+    clearSewershedHover();
+    setSelectedSewershed(sewershedName);
+    showWrrfDetails(sewershedName);
+}
+
+function unlockSewershedPanel() {
+    lockedSewershedName = null;
+    map.getCanvas().style.cursor = '';
+    clearSewershedHover();
+    clearSelectedSewershed();
+    resetWrrfPanel();
+}
+
+function showWrrfDetails(sewershedName) {
+    const panel = document.getElementById('wrrf-info-panel');
+    const title = document.getElementById('wrrf-panel-title');
+    const code = document.getElementById('wrrf-panel-code');
+    const metricsContainer = document.getElementById('wrrf-metrics');
+    const functionsContainer = document.getElementById('wrrf-functions');
+    const wrrfLookupName = sewershedToWrrfName[sewershedName] || titleCaseName(sewershedName);
+    const details = wrrfDetailsBySewershed.get(normalizeName(wrrfLookupName));
+
+    panel.classList.remove('empty');
+    panel.classList.add('has-data');
+    title.textContent = wrrfLookupName;
+
+    if (!details) {
+        code.textContent = 'N/A';
+        metricsContainer.innerHTML = `<p class="missing-data">No WRRF details found for ${escapeHTML(sewershedName)}.</p>`;
+        functionsContainer.innerHTML = '';
+        return;
+    }
+
+    title.textContent = details['WRRF Name'];
+    code.textContent = details.WRRF || 'WRRF';
+    metricsContainer.innerHTML = wrrfMetricFields
+        .map(([label, field, suffix = '']) => createMetricCard(label, details[field], suffix))
+        .join('');
+
+    const functionGroupsHTML = createFunctionGroups(details);
+    functionsContainer.innerHTML = functionGroupsHTML
+        ? functionGroupsHTML
+        : '<span class="no-functions">No listed functions marked Yes.</span>';
+}
+
+function createFunctionGroups(details) {
+    return wrrfFunctionGroups
+        .map(group => {
+            const activeFields = group.fields.filter(field => isYes(details[field]));
+            if (!activeFields.length) {
+                return '';
+            }
+
+            return `
+                <div class="function-group ${escapeHTML(group.colorClass)}">
+                    <h5>${escapeHTML(group.title)}</h5>
+                    <div class="function-chip-row">
+                        ${activeFields.map(field => `<span class="function-chip">${escapeHTML(field)}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+}
+
+function hasWrrfDetails(sewershedName) {
+    if (!sewershedName || inactiveSewersheds.has(sewershedName)) {
+        return false;
+    }
+
+    const wrrfLookupName = sewershedToWrrfName[sewershedName] || titleCaseName(sewershedName);
+    return wrrfDetailsBySewershed.has(normalizeName(wrrfLookupName));
+}
+
+function resetWrrfPanel() {
+    const panel = document.getElementById('wrrf-info-panel');
+    document.getElementById('wrrf-panel-title').textContent = 'Hover over a sewershed';
+    document.getElementById('wrrf-panel-code').textContent = 'WRRF';
+    document.getElementById('wrrf-metrics').innerHTML = '';
+    document.getElementById('wrrf-functions').innerHTML = '';
+    panel.classList.add('empty');
+    panel.classList.remove('has-data');
+}
+
+function createMetricCard(label, value, suffix = '') {
+    const displayValue = value ? `${value}${suffix}` : 'N/A';
+    return `
+        <div class="metric-card">
+            <span class="metric-label">${escapeHTML(label)}</span>
+            <span class="metric-value">${escapeHTML(displayValue)}</span>
+        </div>
+    `;
+}
+
+function setupIntroOverlay() {
+    const overlay = document.getElementById('intro-overlay');
+    const enterButton = document.getElementById('enter-map');
+
+    if (!overlay || !enterButton) {
+        return;
+    }
+
+    const dismissIntro = () => {
+        overlay.classList.add('hidden');
+        enterButton.blur();
+    };
+
+    enterButton.addEventListener('click', dismissIntro);
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !overlay.classList.contains('hidden')) {
+            dismissIntro();
+        }
+    });
+    enterButton.focus();
+}
+
+function setupTreatmentGuide() {
+    const guide = document.getElementById('treatment-guide');
+    const toggleButton = document.getElementById('toggle-guide');
+    const tabsContainer = document.getElementById('guide-tabs');
+    const pillsContainer = document.getElementById('guide-pills');
+    const descriptionContainer = document.getElementById('guide-description');
+
+    if (!guide || !toggleButton || !tabsContainer || !pillsContainer || !descriptionContainer) {
+        return;
+    }
+
+    let activeGroupIndex = 0;
+    let activeField = wrrfFunctionGroups[activeGroupIndex].fields[0];
+
+    function renderGuide() {
+        const activeGroup = wrrfFunctionGroups[activeGroupIndex];
+
+        tabsContainer.innerHTML = wrrfFunctionGroups
+            .map((group, index) => `
+                <button class="guide-tab ${index === activeGroupIndex ? 'active' : ''}" type="button" data-group-index="${index}">
+                    <span class="guide-tab-dot ${escapeHTML(group.colorClass)}"></span>
+                    ${escapeHTML(group.title)}
+                </button>
+            `)
+            .join('');
+
+        pillsContainer.className = `guide-pills ${activeGroup.colorClass}`;
+        pillsContainer.innerHTML = activeGroup.fields
+            .map(field => `
+                <button class="guide-pill ${field === activeField ? 'active' : ''}" type="button" data-field="${escapeHTML(field)}">
+                    ${escapeHTML(field)}
+                </button>
+            `)
+            .join('');
+
+        descriptionContainer.innerHTML = `
+            <h4>${escapeHTML(activeField)}</h4>
+            <p>${escapeHTML(treatmentFunctionDescriptions[activeField] || 'Description coming soon.')}</p>
+        `;
+    }
+
+    toggleButton.addEventListener('click', () => {
+        const isMinimized = guide.classList.toggle('minimized');
+        toggleButton.textContent = isMinimized ? '+' : '-';
+        toggleButton.setAttribute('aria-label', isMinimized ? 'Expand treatment guide' : 'Minimize treatment guide');
+    });
+
+    tabsContainer.addEventListener('click', event => {
+        const tab = event.target.closest('.guide-tab');
+        if (!tab) {
+            return;
+        }
+
+        activeGroupIndex = Number(tab.dataset.groupIndex);
+        activeField = wrrfFunctionGroups[activeGroupIndex].fields[0];
+        renderGuide();
+    });
+
+    pillsContainer.addEventListener('click', event => {
+        const pill = event.target.closest('.guide-pill');
+        if (!pill) {
+            return;
+        }
+
+        activeField = pill.dataset.field;
+        renderGuide();
+    });
+
+    renderGuide();
 }
 
 // Fetch and parse CSV file
@@ -202,123 +625,67 @@ async function fetchAndAddMarkers() {
         // Add a marker for each plant
         plants.forEach(plant => {
             const color = markerColor;
-            
-            const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' })
-                .setHTML(`
-                    <style>
-                        .plant-popup {
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                            padding: 0;
-                            border-radius: 12px;
-                            overflow: hidden;
-                        }
-                        .plant-popup-header {
-                            background: linear-gradient(135deg, ${color} 0%, ${adjustColor(color, -20)} 100%);
-                            color: white;
-                            padding: 16px;
-                            margin: 0;
-                        }
-                        .plant-popup-header h3 {
-                            margin: 0;
-                            font-size: 18px;
-                            font-weight: 600;
-                            letter-spacing: 0.3px;
-                        }
-                        .plant-popup-content {
-                            padding: 16px;
-                            background: #fafafa;
-                        }
-                        .popup-row {
-                            margin: 10px 0;
-                            display: flex;
-                            flex-direction: column;
-                        }
-                        .popup-row strong {
-                            color: #333;
-                            font-size: 12px;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            margin-bottom: 4px;
-                            font-weight: 600;
-                        }
-                        .popup-row p {
-                            margin: 0;
-                            color: #666;
-                            font-size: 14px;
-                            line-height: 1.5;
-                        }
-                    </style>
-                    <div class="plant-popup">
-                        <div class="plant-popup-header">
-                            <h3>${plant.facility}</h3>
-                        </div>
-                        <div class="plant-popup-content">
-                            <div class="popup-row">
-                                <strong>📅 Year Built</strong>
-                                <p>${plant.yearBuilt}</p>
-                            </div>
-                            <div class="popup-row">
-                                <strong>⚙️ Design Capacity</strong>
-                                <p>${plant.capacity}</p>
-                            </div>
-                            <div class="popup-row">
-                                <strong>👥 Population Served</strong>
-                                <p>${plant.populationServed}</p>
-                            </div>
-                            <div class="popup-row">
-                                <strong>💧 Receiving Waterbody</strong>
-                                <p>${plant.receivingWaterbody}</p>
-                            </div>
-                        </div>
-                    </div>
-                `);
+            const abbreviation = getWrrfAbbreviation(plant.facility);
 
             const marker = new mapboxgl.Marker({
-                element: createWaterDropletMarker(color)
+                element: createPlantMarker(color, abbreviation, plant.facility),
+                anchor: 'bottom',
+                offset: [0, -8]
             })
                 .setLngLat([plant.longitude, plant.latitude])
-                .setPopup(popup)
                 .addTo(map);
 
             plantMarkers.set(plant.facility, marker);
         });
-
-        // Populate the summary table
-        populateSummaryTable(plants);
-        
-        // Add minimize/expand functionality
-        setupTableToggle();
         
     } catch (error) {
         console.error('Error loading CSV file:', error);
     }
 }
 
-// Create a custom modern marker
-function createWaterDropletMarker(color) {
+function getWrrfAbbreviation(facilityName) {
+    const details = wrrfDetailsBySewershed.get(normalizeName(facilityName));
+    return details?.WRRF || facilityName.slice(0, 2).toUpperCase();
+}
+
+// Create a labeled WRRF marker
+function createPlantMarker(color, abbreviation, facilityName) {
     const el = document.createElement('div');
+    el.className = 'plant-marker';
+    el.style.setProperty('--marker-color', color);
+    el.setAttribute('aria-label', `${facilityName} WRRF`);
     el.innerHTML = `
-        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
-                </filter>
-            </defs>
-            <circle cx="16" cy="16" r="12" fill="${color}" filter="url(#shadow)"/>
-            <circle cx="16" cy="16" r="11.5" stroke="white" stroke-width="1.5" fill="none"/>
-            <circle cx="16" cy="16" r="5" fill="white" opacity="0.8"/>
-        </svg>
+        <span class="plant-marker-label">${escapeHTML(abbreviation)}</span>
     `;
-    el.style.width = '32px';
-    el.style.height = '32px';
-    el.style.cursor = 'pointer';
+    return el;
+}
+
+function setSearchedAddressMarker(coordinates) {
+    clearSearchedAddressMarker();
+    searchedAddressMarker = new mapboxgl.Marker({
+        element: createSearchedAddressMarker(),
+        anchor: 'center'
+    })
+        .setLngLat(coordinates)
+        .addTo(map);
+}
+
+function clearSearchedAddressMarker() {
+    if (searchedAddressMarker) {
+        searchedAddressMarker.remove();
+        searchedAddressMarker = null;
+    }
+}
+
+function createSearchedAddressMarker() {
+    const el = document.createElement('div');
+    el.className = 'searched-address-marker';
     return el;
 }
 
 // Simple CSV parser
 function parseCSV(csvText) {
     const lines = csvText.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
     const plants = [];
     
     for (let i = 1; i < lines.length; i++) {
@@ -336,6 +703,19 @@ function parseCSV(csvText) {
     }
     
     return plants;
+}
+
+function parseCSVRows(csvText) {
+    const lines = csvText.trim().split(/\r?\n/);
+    const headers = parseCSVLine(lines[0]).map(header => header.trim());
+
+    return lines.slice(1).map(line => {
+        const values = parseCSVLine(line);
+        return headers.reduce((row, header, index) => {
+            row[header] = (values[index] || '').trim();
+            return row;
+        }, {});
+    });
 }
 
 // Parse CSV line handling quoted values
@@ -360,86 +740,31 @@ function parseCSVLine(line) {
     return result;
 }
 
-// Adjust hex color brightness for gradients
-function adjustColor(color, percent) {
-    const hex = color.replace('#', '');
-    const num = parseInt(hex, 16);
-    const amt = Math.round(2.55 * percent);
-    const R = (num >> 16) + amt;
-    const G = (num >> 8 & 0x00FF) + amt;
-    const B = (num & 0x0000FF) + amt;
-    return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 +
-        (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255))
-        .toString(16).slice(1);
+function normalizeName(name) {
+    return String(name || '')
+        .toUpperCase()
+        .replace(/\b(\d+)(ST|ND|RD|TH)\b/g, '$1')
+        .replace(/[^A-Z0-9]/g, '');
 }
 
-// Populate the summary table with plant data
-function populateSummaryTable(plants) {
-    const tableBody = document.getElementById('table-body');
-    tableBody.innerHTML = '';
-    
-    // Sort plants by capacity (smallest to largest)
-    const sortedPlants = [...plants].sort((a, b) => {
-        const capacityA = parseFloat(a.capacity);
-        const capacityB = parseFloat(b.capacity);
-        return capacityA - capacityB;
-    });
-    
-    sortedPlants.forEach(plant => {
-        const row = document.createElement('tr');
-        row.tabIndex = 0;
-        row.setAttribute('role', 'button');
-        row.setAttribute('aria-label', `Zoom to ${plant.facility}`);
-        row.innerHTML = `
-            <td>${plant.facility}</td>
-            <td>${plant.yearBuilt}</td>
-            <td>${plant.capacity}</td>
-        `;
-        row.addEventListener('click', () => zoomToPlant(plant));
-        row.addEventListener('keydown', event => {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                zoomToPlant(plant);
-            }
-        });
-        tableBody.appendChild(row);
-    });
+function titleCaseName(name) {
+    return String(name || '')
+        .toLowerCase()
+        .split(' ')
+        .map(word => word ? word[0].toUpperCase() + word.slice(1) : '')
+        .join(' ');
 }
 
-function zoomToPlant(plant) {
-    map.flyTo({
-        center: [plant.longitude, plant.latitude],
-        zoom: 13.5,
-        essential: true
-    });
-
-    const marker = plantMarkers.get(plant.facility);
-    if (marker) {
-        marker.getPopup().addTo(map);
-    }
+function isYes(value) {
+    return String(value || '').trim().toLowerCase() === 'yes';
 }
 
-// Setup minimize/expand functionality for the summary table
-function setupTableToggle() {
-    const toggleBtn = document.getElementById('toggle-table');
-    const summaryTable = document.getElementById('summary-table');
-    const minimizedBar = document.querySelector('.table-minimized');
-    
-    toggleBtn.addEventListener('click', () => {
-        const isMinimized = summaryTable.classList.contains('minimized');
-        
-        if (isMinimized) {
-            summaryTable.classList.remove('minimized');
-            toggleBtn.textContent = '−';
-        } else {
-            summaryTable.classList.add('minimized');
-            toggleBtn.textContent = '+';
-        }
-    });
-    
-    // Allow clicking the minimized bar to expand
-    minimizedBar.addEventListener('click', () => {
-        summaryTable.classList.remove('minimized');
-        toggleBtn.textContent = '−';
-    });
+function escapeHTML(value) {
+    return String(value || '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
 }

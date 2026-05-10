@@ -1,0 +1,15 @@
+WRRF,WRRF Name,Year,Capacity (MGD),Wet Weather Flow (MGD),Borough,Population Served,Drainage Area (acres),Preliminary Treatment,Secondary Treatment,Biological Nutrient Removal (BNR),Chlorination,Dechlorination,Sludge Dewatering,Sludge Pumping,Docks,Gas to Grid / Food Waste,Cogen Engines,Title V Facility,CSO Facilities
+NC,Newtown Creek,1967,310,700,Brooklyn,"1,068,012","15,656",Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,No,Yes,No
+WI,Wards Island,1937,275,500,Manhattan,"1,061,558","2,056",Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No
+HP,Hunts Point,1952,200,400,Bronx,"684,569","16,664",Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No
+NR,North River,1986,170,340,Manhattan,"588,772","6,030",Yes,Yes,No,Yes,Yes,No,No,Yes,No,Yes,Yes,No
+BB,Bowery Bay,1939,150,300,Queens,"848,328","15,203",Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No
+OH,Owls Head,1952,120,240,Brooklyn,"758,007","12,947",Yes,Yes,No,Yes,No,No,No,Yes,No,Emergency Only,Yes,No
+CI,Coney Island,1935,110,220,Brooklyn,"596,326","15,087",Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Emergency Only,Yes,Yes
+JA,Jamaica,1943,100,200,Queens,"728,123","25,313",Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No
+26W,26th Ward,1944,85,170,Brooklyn,"283,428","5,907",Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,Yes
+TI,Tallman Island,1939,80,160,Queens,"410,812","16,860",Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,Yes
+PR,Port Richmond,1953,60,120,Staten Island,"198,128","9,665",Yes,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No
+RH,Red Hook,1987,60,120,Brooklyn,"192,050","3,200",Yes,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No
+RK,Rockaway,1952,45,90,Queens,"90,474","6,259",Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No
+OB,Oakwood Beach,1956,40,80,Staten Island,"244,918","10,779",Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No
