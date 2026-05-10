@@ -157,6 +157,11 @@ function addAddressSearch() {
         return;
     }
 
+    const searchContainer = document.getElementById('address-search');
+    if (!searchContainer) {
+        return;
+    }
+
     const geocoder = new MapboxGeocoder({
         accessToken: mapboxgl.accessToken,
         mapboxgl,
@@ -185,7 +190,7 @@ function addAddressSearch() {
         clearSearchedAddressMarker();
     });
 
-    map.addControl(geocoder, 'top-left');
+    searchContainer.appendChild(geocoder.onAdd(map));
 }
 
 async function loadWrrfDetails() {
