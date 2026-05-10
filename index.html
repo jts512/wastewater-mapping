@@ -37,13 +37,15 @@
                 <h3 id="wrrf-panel-title">Hover over a sewershed</h3>
             </div>
             <span id="wrrf-panel-code" class="wrrf-code">WRRF</span>
+            <button id="close-wrrf-panel" class="close-panel" type="button" aria-label="Close treatment area details">&times;</button>
         </div>
         <div class="wrrf-panel-body">
             <p id="wrrf-panel-prompt" class="panel-prompt">
-                Hover to preview. Click a treatment area to keep it open.
+                Hover to preview. Click or tap a treatment area to keep it open.
             </p>
             <div id="wrrf-panel-content" class="panel-content" aria-live="polite">
                 <div class="metric-grid" id="wrrf-metrics"></div>
+                <p class="metric-note"><abbr title="million gallons per day">MGD</abbr> stands for million gallons per day.</p>
                 <div class="function-section">
                     <h4>Facility Functions</h4>
                     <div class="function-list" id="wrrf-functions"></div>
@@ -73,6 +75,10 @@
         <div class="legend-row">
             <span class="legend-swatch neutral-area"></span>
             <span>Neutral areas are not WRRF sewersheds</span>
+        </div>
+        <div class="legend-row">
+            <span class="legend-plant-marker" aria-hidden="true">WRRF</span>
+            <span>WRRF markers show the treatment plant location for that area</span>
         </div>
     </div>
     <div id="map-container"></div>

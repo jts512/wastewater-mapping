@@ -316,6 +316,11 @@ function getFirstBasemapLabelLayerId() {
 }
 
 function setupSewershedHover() {
+    const closePanelButton = document.getElementById('close-wrrf-panel');
+    if (closePanelButton) {
+        closePanelButton.addEventListener('click', unlockSewershedPanel);
+    }
+
     map.on('mousemove', 'sewersheds-fill', event => {
         if (lockedSewershedName) {
             return;
@@ -354,21 +359,15 @@ function setupSewershedHover() {
     });
 
     map.on('click', 'sewersheds-fill', event => {
-        const clickedFeature = event.features[0];
-        if (!clickedFeature) {
+        selectSewershedFeature(event.features[0]);
+    });
+
+    map.on('touchstart', 'sewersheds-fill', event => {
+        if (event.points && event.points.length > 1) {
             return;
         }
 
-        const sewershedName = clickedFeature.properties.Sewershed;
-        if (!hasWrrfDetails(sewershedName)) {
-            return;
-        }
-
-        lockedSewershedName = sewershedName;
-        map.getCanvas().style.cursor = 'pointer';
-        clearSewershedHover();
-        setSelectedSewershed(sewershedName);
-        showWrrfDetails(sewershedName);
+        selectSewershedFeature(event.features[0]);
     });
 
     map.on('click', event => {
@@ -385,6 +384,23 @@ function setupSewershedHover() {
             unlockSewershedPanel();
         }
     });
+}
+
+function selectSewershedFeature(feature) {
+    if (!feature) {
+        return;
+    }
+
+    const sewershedName = feature.properties.Sewershed;
+    if (!hasWrrfDetails(sewershedName)) {
+        return;
+    }
+
+    lockedSewershedName = sewershedName;
+    map.getCanvas().style.cursor = 'pointer';
+    clearSewershedHover();
+    setSelectedSewershed(sewershedName);
+    showWrrfDetails(sewershedName);
 }
 
 function clearSewershedHover() {
