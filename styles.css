@@ -465,11 +465,6 @@ body {
   pointer-events: none;
 }
 
-#wrrf-info-panel.empty .wrrf-code,
-#wrrf-info-panel.empty .close-panel {
-  display: none;
-}
-
 .wrrf-panel-header {
   display: flex;
   justify-content: space-between;

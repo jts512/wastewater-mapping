@@ -1,30 +1,13 @@
 // Initialize the map
 mapboxgl.accessToken = 'pk.eyJ1IjoianRzNTEyIiwiYSI6ImNtaHR6ZGhyZzF2eHYya3B3Y3FqbnFpZnMifQ.YYvh9nBukOuxNae4j0-0FA';
 
-const nycBounds = [
-    [-74.2591, 40.4774],
-    [-73.7004, 40.9176]
-];
-const mapPanBounds = [
-    [-74.35, 40.40],
-    [-73.62, 40.98]
-];
-const nycPlaceNames = ['New York', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'];
-
 const map = new mapboxgl.Map({
     container: 'map-container',
     style: 'mapbox://styles/mapbox/light-v11',
     projection: 'globe',
     zoom: 9,
-    minZoom: 8,
-    maxBounds: mapPanBounds,
     center: [-73.97030020004898, 40.67490743292621]
 });
-
-map.addControl(new mapboxgl.NavigationControl({
-    showCompass: false,
-    showZoom: true
-}), 'bottom-right');
 
 const plantMarkers = new Map();
 const wrrfDetailsBySewershed = new Map();
@@ -86,7 +69,6 @@ const sewershedFillOpacityExpression = [
     sewershedStyle.fillOpacity
 ];
 const sewershedPolygonFilter = ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']];
-const sewershedBaseOutlineFilter = ['all', sewershedPolygonFilter, ['!=', ['get', 'hideOutline'], true]];
 const emptySewershedFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], '']];
 
 const sewershedToWrrfName = {
@@ -100,32 +82,6 @@ const sewershedOverrides = [
         sourceSewershed: 'NA',
         targetSewershed: 'RED HOOK',
         coordinate: [-74.0169, 40.6895]
-    },
-    {
-        name: 'Roosevelt Island',
-        sourceSewershed: 'NEWTOWN CREEK',
-        targetSewershed: 'BOWERY BAY',
-        coordinate: [-73.945, 40.768],
-        hideOutline: true
-    },
-    {
-        name: 'Roosevelt Island Bowery Bay outline',
-        sourceSewershed: 'BOWERY BAY',
-        targetSewershed: 'BOWERY BAY',
-        coordinate: [-73.9496, 40.7616],
-        hideOutline: true
-    }
-];
-
-const splitSewershedOverrides = [
-    {
-        name: 'Central Park',
-        sourceSewershed: 'CENTRAL PARK',
-        coordinate: [-73.9654, 40.7829],
-        boundarySourceSewershed: 'NEWTOWN CREEK',
-        boundaryEdge: 'north',
-        aboveSewershed: 'WARDS ISLAND',
-        belowSewershed: 'NEWTOWN CREEK'
     }
 ];
 
@@ -220,10 +176,9 @@ function addAddressSearch() {
         mapboxgl,
         marker: false,
         placeholder: 'Find your treatment area',
-        bbox: nycBounds.flat(),
+        bbox: [-74.2591, 40.4774, -73.7004, 40.9176],
         countries: 'us',
-        types: 'address',
-        filter: isNycAddressResult,
+        types: 'address,poi,place,neighborhood,locality',
         proximity: {
             longitude: -73.9703,
             latitude: 40.6749
@@ -245,25 +200,6 @@ function addAddressSearch() {
     });
 
     searchContainer.appendChild(geocoder.onAdd(map));
-}
-
-function isNycAddressResult(result) {
-    const coordinates = result?.geometry?.coordinates;
-    const placeName = result?.place_name || '';
-
-    return Array.isArray(coordinates) &&
-        isCoordinateInBounds(coordinates, nycBounds) &&
-        nycPlaceNames.some(name => placeName.includes(`${name}, New York`));
-}
-
-function isCoordinateInBounds(coordinates, bounds) {
-    const [longitude, latitude] = coordinates;
-    const [[west, south], [east, north]] = bounds;
-
-    return longitude >= west &&
-        longitude <= east &&
-        latitude >= south &&
-        latitude <= north;
 }
 
 async function loadWrrfDetails() {
@@ -317,7 +253,7 @@ async function loadAndAddSewersheds() {
             id: 'sewersheds-outline',
             type: 'line',
             source: 'sewersheds',
-            filter: sewershedBaseOutlineFilter,
+            filter: sewershedPolygonFilter,
             paint: {
                 'line-color': sewershedStyle.outlineColor,
                 'line-width': sewershedStyle.outlineWidth,
@@ -334,17 +270,6 @@ async function loadAndAddSewersheds() {
                 'line-color': '#222',
                 'line-width': 4,
                 'line-opacity': 0.40
-            }
-        }, firstLabelLayerId);
-
-        map.addLayer({
-            id: 'sewersheds-selected-fill',
-            type: 'fill',
-            source: 'sewersheds',
-            filter: emptySewershedFilter,
-            paint: {
-                'fill-color': '#FFFFFF',
-                'fill-opacity': 0.22
             }
         }, firstLabelLayerId);
 
@@ -392,10 +317,6 @@ function applySewershedOverrides(geojson) {
     sewershedOverrides.forEach(override => {
         moveContainingPolygonToSewershed(geojson, override);
     });
-
-    splitSewershedOverrides.forEach(override => {
-        splitContainingPolygonByLatitude(geojson, override);
-    });
 }
 
 function moveContainingPolygonToSewershed(geojson, override) {
@@ -429,185 +350,13 @@ function moveContainingPolygonToSewershed(geojson, override) {
         properties: {
             ...sourceFeature.properties,
             Sewershed: override.targetSewershed,
-            label: null,
-            hideOutline: override.hideOutline === true
+            label: null
         },
         geometry: {
             type: 'MultiPolygon',
             coordinates: targetPolygons
         }
     });
-}
-
-function splitContainingPolygonByLatitude(geojson, override) {
-    const sourceFeature = geojson.features.find(feature =>
-        feature.geometry?.type === 'MultiPolygon' &&
-        feature.properties?.Sewershed === override.sourceSewershed &&
-        feature.geometry.coordinates.some(polygon => isPointInPolygon(override.coordinate, polygon))
-    );
-    const boundaryLatitude = getSewershedBoundaryLatitude(
-        geojson,
-        override.boundarySourceSewershed,
-        override.boundaryEdge
-    );
-
-    if (!sourceFeature || boundaryLatitude === null) {
-        console.warn(`Could not apply ${override.name} sewershed split override.`);
-        return;
-    }
-
-    const abovePolygons = [];
-    const belowPolygons = [];
-
-    sourceFeature.geometry.coordinates = sourceFeature.geometry.coordinates.filter(polygon => {
-        if (!isPointInPolygon(override.coordinate, polygon)) {
-            return true;
-        }
-
-        const belowPolygon = clipPolygonByLatitude(polygon, boundaryLatitude, false);
-        const abovePolygon = clipPolygonByLatitude(polygon, boundaryLatitude, true);
-
-        if (belowPolygon) {
-            belowPolygons.push(belowPolygon);
-        }
-
-        if (abovePolygon) {
-            abovePolygons.push(abovePolygon);
-        }
-
-        return false;
-    });
-
-    addOverrideFeature(geojson, sourceFeature, override.belowSewershed, belowPolygons, { hideOutline: true });
-    addOverrideFeature(geojson, sourceFeature, override.aboveSewershed, abovePolygons, { hideOutline: true });
-}
-
-function addOverrideFeature(geojson, sourceFeature, sewershedName, polygons, extraProperties = {}) {
-    if (!polygons.length) {
-        return;
-    }
-
-    geojson.features.push({
-        type: 'Feature',
-        properties: {
-            ...sourceFeature.properties,
-            Sewershed: sewershedName,
-            label: null,
-            ...extraProperties
-        },
-        geometry: {
-            type: 'MultiPolygon',
-            coordinates: polygons
-        }
-    });
-}
-
-function getSewershedBoundaryLatitude(geojson, sewershedName, edge) {
-    const feature = geojson.features.find(item =>
-        item.geometry?.type === 'MultiPolygon' &&
-        item.properties?.Sewershed === sewershedName
-    );
-
-    if (!feature) {
-        return null;
-    }
-
-    const bounds = getCoordinateBounds(feature.geometry.coordinates);
-    return edge === 'north' ? bounds.maxY : bounds.minY;
-}
-
-function getCoordinateBounds(coordinates) {
-    const bounds = {
-        minX: Infinity,
-        maxX: -Infinity,
-        minY: Infinity,
-        maxY: -Infinity
-    };
-
-    visitCoordinates(coordinates, ([longitude, latitude]) => {
-        bounds.minX = Math.min(bounds.minX, longitude);
-        bounds.maxX = Math.max(bounds.maxX, longitude);
-        bounds.minY = Math.min(bounds.minY, latitude);
-        bounds.maxY = Math.max(bounds.maxY, latitude);
-    });
-
-    return bounds;
-}
-
-function visitCoordinates(coordinates, callback) {
-    if (typeof coordinates[0] === 'number') {
-        callback(coordinates);
-        return;
-    }
-
-    coordinates.forEach(item => visitCoordinates(item, callback));
-}
-
-function clipPolygonByLatitude(polygon, latitude, keepAbove) {
-    const clippedOuterRing = clipRingByLatitude(polygon[0], latitude, keepAbove);
-
-    if (clippedOuterRing.length < 4) {
-        return null;
-    }
-
-    return [clippedOuterRing];
-}
-
-function clipRingByLatitude(ring, latitude, keepAbove) {
-    const openRing = coordinatesEqual(ring[0], ring[ring.length - 1])
-        ? ring.slice(0, -1)
-        : ring;
-    const clippedRing = [];
-
-    openRing.forEach((currentPoint, index) => {
-        const previousPoint = openRing[(index + openRing.length - 1) % openRing.length];
-        const currentInside = isPointOnLatitudeSide(currentPoint, latitude, keepAbove);
-        const previousInside = isPointOnLatitudeSide(previousPoint, latitude, keepAbove);
-
-        if (currentInside !== previousInside) {
-            clippedRing.push(intersectSegmentWithLatitude(previousPoint, currentPoint, latitude));
-        }
-
-        if (currentInside) {
-            clippedRing.push(currentPoint);
-        }
-    });
-
-    return closeRing(removeDuplicateCoordinates(clippedRing));
-}
-
-function isPointOnLatitudeSide(point, latitude, keepAbove) {
-    return keepAbove ? point[1] >= latitude : point[1] <= latitude;
-}
-
-function intersectSegmentWithLatitude(startPoint, endPoint, latitude) {
-    const [startLongitude, startLatitude] = startPoint;
-    const [endLongitude, endLatitude] = endPoint;
-    const ratio = (latitude - startLatitude) / (endLatitude - startLatitude);
-
-    return [
-        startLongitude + (endLongitude - startLongitude) * ratio,
-        latitude
-    ];
-}
-
-function closeRing(ring) {
-    if (!ring.length || coordinatesEqual(ring[0], ring[ring.length - 1])) {
-        return ring;
-    }
-
-    return [...ring, ring[0]];
-}
-
-function removeDuplicateCoordinates(coordinates) {
-    return coordinates.filter((coordinate, index) =>
-        index === 0 || !coordinatesEqual(coordinate, coordinates[index - 1])
-    );
-}
-
-function coordinatesEqual(firstCoordinate, secondCoordinate) {
-    return firstCoordinate[0] === secondCoordinate[0] &&
-        firstCoordinate[1] === secondCoordinate[1];
 }
 
 function isPointInPolygon(point, polygon) {
@@ -671,10 +420,12 @@ function setupSewershedHover() {
 
         if (!hasDetails) {
             clearSewershedHover();
+            resetWrrfPanel();
             return;
         }
 
         setSewershedHover(sewershedName);
+        showWrrfDetails(sewershedName);
     });
 
     map.on('mouseleave', 'sewersheds-fill', () => {
@@ -684,6 +435,7 @@ function setupSewershedHover() {
 
         map.getCanvas().style.cursor = '';
         clearSewershedHover();
+        resetWrrfPanel();
     });
 
     map.on('click', 'sewersheds-fill', event => {
@@ -742,29 +494,23 @@ function setSewershedHover(sewershedName) {
         return;
     }
 
-    const hoverFilter = ['all', sewershedBaseOutlineFilter, ['==', ['get', 'Sewershed'], sewershedName]];
+    const hoverFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
     map.setFilter('sewersheds-hover-outline', hoverFilter);
 }
 
 function clearSelectedSewershed() {
-    if (map.getLayer('sewersheds-selected-fill')) {
-        map.setFilter('sewersheds-selected-fill', emptySewershedFilter);
-    }
-
     if (map.getLayer('sewersheds-selected-outline')) {
         map.setFilter('sewersheds-selected-outline', emptySewershedFilter);
     }
 }
 
 function setSelectedSewershed(sewershedName) {
-    if (!map.getLayer('sewersheds-selected-fill') || !map.getLayer('sewersheds-selected-outline')) {
+    if (!map.getLayer('sewersheds-selected-outline')) {
         return;
     }
 
-    const selectedFillFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
-    const selectedOutlineFilter = ['all', sewershedBaseOutlineFilter, ['==', ['get', 'Sewershed'], sewershedName]];
-    map.setFilter('sewersheds-selected-fill', selectedFillFilter);
-    map.setFilter('sewersheds-selected-outline', selectedOutlineFilter);
+    const selectedFilter = ['all', sewershedPolygonFilter, ['==', ['get', 'Sewershed'], sewershedName]];
+    map.setFilter('sewersheds-selected-outline', selectedFilter);
 }
 
 function selectTreatmentAreaAtCoordinates(coordinates) {
@@ -867,7 +613,7 @@ function hasWrrfDetails(sewershedName) {
 
 function resetWrrfPanel() {
     const panel = document.getElementById('wrrf-info-panel');
-    document.getElementById('wrrf-panel-title').textContent = 'Click a sewershed';
+    document.getElementById('wrrf-panel-title').textContent = 'Hover over a sewershed';
     document.getElementById('wrrf-panel-code').textContent = 'WRRF';
     document.getElementById('wrrf-metrics').innerHTML = '';
     document.getElementById('wrrf-functions').innerHTML = '';
