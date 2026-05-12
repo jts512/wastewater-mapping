@@ -6,8 +6,21 @@ const map = new mapboxgl.Map({
     style: 'mapbox://styles/mapbox/light-v11',
     projection: 'globe',
     zoom: 9,
+    minZoom: 8,
+    maxBounds: [
+        [-75.25, 39.85],
+        [-72.45, 41.55]
+    ],
     center: [-73.97030020004898, 40.67490743292621]
 });
+
+map.addControl(new mapboxgl.NavigationControl({
+    showCompass: false,
+    visualizePitch: false
+}), 'bottom-right');
+
+const nycAddressSearchBbox = [-74.2591, 40.4774, -73.7004, 40.9176];
+const nycAddressSearchPlaces = ['manhattan', 'brooklyn', 'queens', 'bronx', 'staten island'];
 
 const plantMarkers = new Map();
 const wrrfDetailsBySewershed = new Map();
@@ -176,9 +189,10 @@ function addAddressSearch() {
         mapboxgl,
         marker: false,
         placeholder: 'Find your treatment area',
-        bbox: [-74.2591, 40.4774, -73.7004, 40.9176],
+        bbox: nycAddressSearchBbox,
         countries: 'us',
-        types: 'address,poi,place,neighborhood,locality',
+        types: 'address',
+        filter: isNycAddressResult,
         proximity: {
             longitude: -73.9703,
             latitude: 40.6749
@@ -186,6 +200,10 @@ function addAddressSearch() {
     });
 
     geocoder.on('result', event => {
+        if (!isNycAddressResult(event.result)) {
+            return;
+        }
+
         const coordinates = event.result?.geometry?.coordinates;
         if (coordinates) {
             setSearchedAddressMarker(coordinates);
@@ -200,6 +218,37 @@ function addAddressSearch() {
     });
 
     searchContainer.appendChild(geocoder.onAdd(map));
+}
+
+function isNycAddressResult(result) {
+    const coordinates = result?.geometry?.coordinates;
+    const placeTypes = result?.place_type || [];
+
+    if (!coordinates || !placeTypes.includes('address')) {
+        return false;
+    }
+
+    const [longitude, latitude] = coordinates;
+    const [west, south, east, north] = nycAddressSearchBbox;
+    const isInsideNycBbox = longitude >= west && longitude <= east && latitude >= south && latitude <= north;
+
+    if (!isInsideNycBbox) {
+        return false;
+    }
+
+    const contextText = [
+        result.place_name,
+        result.matching_place_name,
+        ...(result.context || []).map(item => `${item.id || ''} ${item.text || item.name || ''} ${item.short_code || ''}`)
+    ]
+        .join(' ')
+        .toLowerCase();
+
+    const isInNewYorkState = contextText.includes('new york') || contextText.includes('us-ny');
+    const isManhattanAddress = /\bnew york,\s*(new york|ny)\b/.test(contextText);
+    const isInNycPlace = isManhattanAddress || nycAddressSearchPlaces.some(place => contextText.includes(place));
+
+    return isInNewYorkState && isInNycPlace;
 }
 
 async function loadWrrfDetails() {
@@ -306,7 +355,7 @@ async function loadAndAddSewersheds() {
             filter: ['==', ['get', 'isLabel'], true]
         });
 
-        setupSewershedHover();
+        setupSewershedInteractions();
         
     } catch (error) {
         console.error('Error loading sewersheds GeoJSON:', error);
@@ -395,21 +444,16 @@ function getFirstBasemapLabelLayerId() {
     return labelLayer?.id;
 }
 
-function setupSewershedHover() {
+function setupSewershedInteractions() {
     const closePanelButton = document.getElementById('close-wrrf-panel');
     if (closePanelButton) {
         closePanelButton.addEventListener('click', unlockSewershedPanel);
     }
 
     map.on('mousemove', 'sewersheds-fill', event => {
-        if (lockedSewershedName) {
-            return;
-        }
-
         const hoveredFeature = event.features[0];
         if (!hoveredFeature) {
             clearSewershedHover();
-            resetWrrfPanel();
             return;
         }
 
@@ -420,22 +464,15 @@ function setupSewershedHover() {
 
         if (!hasDetails) {
             clearSewershedHover();
-            resetWrrfPanel();
             return;
         }
 
         setSewershedHover(sewershedName);
-        showWrrfDetails(sewershedName);
     });
 
     map.on('mouseleave', 'sewersheds-fill', () => {
-        if (lockedSewershedName) {
-            return;
-        }
-
         map.getCanvas().style.cursor = '';
         clearSewershedHover();
-        resetWrrfPanel();
     });
 
     map.on('click', 'sewersheds-fill', event => {
@@ -613,7 +650,7 @@ function hasWrrfDetails(sewershedName) {
 
 function resetWrrfPanel() {
     const panel = document.getElementById('wrrf-info-panel');
-    document.getElementById('wrrf-panel-title').textContent = 'Hover over a sewershed';
+    document.getElementById('wrrf-panel-title').textContent = 'Click a sewershed';
     document.getElementById('wrrf-panel-code').textContent = 'WRRF';
     document.getElementById('wrrf-metrics').innerHTML = '';
     document.getElementById('wrrf-functions').innerHTML = '';

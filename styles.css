@@ -96,6 +96,54 @@ body {
   position: relative;
 }
 
+#map-title-badge {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 14px 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  color: #0b1f2a;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.map-title-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: rgba(74, 144, 226, 0.14);
+  font-size: 20px;
+}
+
+#map-title-badge h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+#map-title-badge p {
+  margin: 3px 0 0;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .plant-marker {
   position: relative;
   min-width: 34px;
@@ -169,6 +217,18 @@ body {
 
 #address-search .mapboxgl-ctrl-geocoder .suggestions {
   z-index: 1201;
+}
+
+.mapboxgl-ctrl-bottom-right {
+  right: 20px;
+  bottom: 20px;
+}
+
+.mapboxgl-ctrl-bottom-right .mapboxgl-ctrl {
+  margin: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 }
 
 #map-legend {
@@ -465,6 +525,10 @@ body {
   pointer-events: none;
 }
 
+#wrrf-info-panel.empty .wrrf-code {
+  display: none;
+}
+
 .wrrf-panel-header {
   display: flex;
   justify-content: space-between;
@@ -674,6 +738,34 @@ body {
 
 /* Responsive design */
 @media (max-width: 768px) {
+  #map-title-badge {
+    top: 74px;
+    left: 10px;
+    max-width: calc(100vw - 20px);
+    padding: 9px 12px 9px 10px;
+    transform: none;
+  }
+
+  .map-title-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+  }
+
+  #map-title-badge h1 {
+    font-size: 16px;
+  }
+
+  #map-title-badge p {
+    font-size: 10px;
+  }
+
+  #address-search {
+    top: 10px;
+    left: 10px;
+    width: min(340px, calc(100vw - 20px));
+  }
+
   #wrrf-info-panel {
     top: auto;
     bottom: 10px;
